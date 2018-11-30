@@ -1,0 +1,14 @@
+let y be num;
+y = 1;
+let x be num;
+x = y;
+
+if x <= 5 then
+    x = x + 1;
+    y = y;
+    while y < 2 do
+        y = y + 1;
+        x = x;
+    endwhile
+    show (x + 2 * 4); 
+endif
