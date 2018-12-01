@@ -7,7 +7,7 @@
 
 typedef struct Symbol {
     int scope;
-    char id[100];
+    Token tok;
     char value[100];
     Type type;
 } Symbol;
@@ -29,3 +29,12 @@ typedef struct Interpreter {
     ParseTree tree;
     bool err;
 } Interpreter;
+
+typedef struct Lit {
+    Type type;
+    double value;
+} Lit;
+
+typedef enum SymbolTableCodes {
+    TYPECHANGE, IN, NOTIN
+} SymCodes;

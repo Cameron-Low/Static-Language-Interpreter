@@ -70,7 +70,16 @@ void tokenize(Lexer *l) {
                 addToken(l, MINUS, "-");
                 break;
             case '/':
-                addToken(l, SLASH, "/");
+                if (peek(l) == '/') {
+                    while (peek(l) != '\n') {
+                        next(l);
+                    }
+                    next(l);
+                    l->line++;
+                    l->col = 0;
+                } else {
+                    addToken(l, SLASH, "/");
+                }
                 break;
             case '&':
                 addToken(l, AND, "&");
@@ -162,13 +171,16 @@ void stringToken(Lexer *l) {
     }
     str[index++] = '\0';
     
-    char *keywords[] = {"if", "let", "while", "be", "then", "endif", "endwhile", "num", "bool", "do", "show"}; // Len 11
+    char *keywords[] = {"if", "let", "while", "be", "then", "endif", "endwhile", "do", "show"}; // Len 9
     char *bools[] = {"true", "false"}; // Len 2
+    char *types[] = {"num", "bool"}; // Len 2
 
-    if (inArray(str, keywords, 11)) {
+    if (inArray(str, keywords, 9)) {
         addToken(l, KEYWORD, str);
     } else if (inArray(str, bools, 2)) {
         addToken(l, BOOLEAN, str);
+    }  else if (inArray(str, types, 2)) {
+        addToken(l, TYPES, str);
     } else {
         addToken(l, ID, str);
     }

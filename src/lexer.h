@@ -11,7 +11,7 @@ typedef enum TokenType {
     SEMICOLON, LPAREN, RPAREN, EQUALS,
     EQEQUALS, BANG, BANGEQ, LTHAN, GTHAN,
     GTHANEQ, LTHANEQ, STAR, PLUS, MINUS,
-    SLASH, AND, OR
+    SLASH, AND, OR, TYPES
 } TokenType;
 
 // Basic token structure.

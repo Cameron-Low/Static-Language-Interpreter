@@ -13,11 +13,11 @@
 void add(ParseTree *p, void *stmt);
 Token pNext(Parser *p);
 Token prev(Parser *p);
-void pError(Parser *p);
+void pError(Parser *p, char *msg);
 bool matchKeyword(Parser *p, char *str);
 bool match(Parser *p, TokenType t);
-bool require(Parser *p, TokenType t);
-bool requireKeyword(Parser *p, char *str);
+bool require(Parser *p, TokenType t, char *msg);
+bool requireKeyword(Parser *p, char *str, char *msg);
 void printStmt(void *stmt);
 void *statement(Parser *p);
 void *varDecStmt(Parser *p);
@@ -48,7 +48,9 @@ void initParser(Parser *p, Lexer *l) {
 
 void parse(Parser *p) {
     while (!(p->err || p->current.type == END)) {
-        add(&p->tree, statement(p));
+        void *stmt = statement(p);
+        if (stmt == (void *)-1) return;
+        add(&p->tree, stmt);
     }
 }
 
@@ -69,18 +71,18 @@ void *statement(Parser *p) {
     } else if (matchKeyword(p, "show")) {
         return showStmt(p);
     } else {
-        pError(p);
-        return (void *) 1;
+        if (p->current.type != END) pError(p, "Unrecognised syntax.");
+        return (void *) -1;
     }
 }
 
 void *varDecStmt(Parser *p) {
-    require(p, ID);
+    if(!require(p, ID, "Expected identifier.")) return (void *) -1;
     Token id = prev(p);
-    requireKeyword(p, "be");
-    require(p, KEYWORD);
+    if(!requireKeyword(p, "be", "Expected 'be'.")) return (void *) -1;
+    if(!require(p, TYPES, "Expected type.")) return (void *) -1;
     Token type = prev(p);
-    require(p, SEMICOLON);
+    if(!require(p, SEMICOLON, "Expected semicolon.")) return (void *) -1;
     Type t;
     if (!strcmp(type.lexeme, "bool")) {
         t = BOOL;
@@ -98,9 +100,9 @@ void *varDecStmt(Parser *p) {
 
 void *varAssignStmt(Parser *p) {
     Token id = prev(p);
-    require(p, EQUALS);
+    if (!require(p, EQUALS, "Missing '=' for assignment.")) return (void *) -1;
     void *expr = expression(p);
-    require(p, SEMICOLON);
+    if (!require(p, SEMICOLON, "Expected semicolon.")) return (void *) -1;
     VarAssignStmt *stmt = malloc(sizeof(VarAssignStmt));
     strcpy(stmt->id, id.lexeme);
     stmt->expr = expr;
@@ -110,35 +112,57 @@ void *varAssignStmt(Parser *p) {
 
 void *ifStmt(Parser *p) {
     void *cond = expression(p);
-    requireKeyword(p, "then");
+    if (!requireKeyword(p, "then", "Expected 'then' after condition.")) return (void *) -1;
     IfStmt *stmt = malloc(sizeof(IfStmt));
     stmt->cond = cond;
     stmt->s = IF;
     stmt->trueBranch = (ParseTree) {0,5,NULL};
-    add(&stmt->trueBranch, statement(p));
-    while(!matchKeyword(p, "endif")) {
-        add(&stmt->trueBranch, statement(p));
+    void *tb = statement(p);
+    if (tb == (void *)-1) return tb;
+    add(&stmt->trueBranch, tb);
+    int maxRepeat = 100000;
+    int repeats = 0;
+    while(!matchKeyword(p, "endif") && (repeats != maxRepeat)) {
+        repeats++;
+        tb = statement(p);
+        if (tb == (void *)-1) {
+            pError(p, "Expected 'endif' closing if statement.");
+            return tb;
+        }
+        add(&stmt->trueBranch, tb);
     }
+    if (repeats == maxRepeat) pError(p, "Expected 'endif' closing if statement.");
     return (void *) stmt;
 }
 
 void *whileStmt(Parser *p) {
     void *cond = expression(p);
-    requireKeyword(p, "do");
+    if (!requireKeyword(p, "do", "Expected 'do' after condition.")) return (void *) -1;
     WhileStmt *stmt = malloc(sizeof(WhileStmt));
     stmt->cond = cond;
     stmt->s = WHILE;
     stmt->trueBranch = (ParseTree) {0,5,NULL};
-    add(&stmt->trueBranch, statement(p));
-    while(!matchKeyword(p, "endwhile")) {
-        add(&stmt->trueBranch, statement(p));
+    void *tb = statement(p);
+    if (tb == (void *)-1) return tb;
+    add(&stmt->trueBranch, tb);
+    int maxRepeat = 100000;
+    int repeats = 0;
+    while(!matchKeyword(p, "endwhile") && (repeats != maxRepeat)) {
+        repeats++;
+        tb = statement(p);
+        if (tb == (void *)-1) {
+            pError(p, "Expected 'endwhile' closing while statement.");
+            return tb;
+        }
+        add(&stmt->trueBranch, tb);
     }
+    if (repeats == maxRepeat) pError(p, "Expected 'endwhile' closing while statement.");
     return (void *) stmt;
 }
 
 void *showStmt(Parser *p) {
     void *expr = expression(p);
-    require(p, SEMICOLON);
+    if (!require(p, SEMICOLON, "Expected semicolon.")) return (void *) -1;
     ShowStmt *stmt = malloc(sizeof(ShowStmt));
     stmt->s = SHOW;
     stmt->expr = expr;
@@ -245,14 +269,14 @@ void *primary(Parser *p) {
         return (void *) expr;
     } else if (match(p, LPAREN)) {
         void *expr = expression(p);
-        require(p, RPAREN);
+        if(!require(p, RPAREN, "Missing closing parenthesis on expression.")) return (void *) -1;
         BracketExpr *brackets = malloc(sizeof(BracketExpr));
         brackets->s = BRACKET;
         brackets->expr = expr;
         return (void *) brackets;
     } else {
-        pError(p);
-        return (void *) 1;
+        pError(p, "Expected expression.");
+        return (void *) -1;
     }
 }
 
@@ -287,22 +311,22 @@ Token prev(Parser *p) {
 }
 
 // Signal an error.
-void pError(Parser *p) {
+void pError(Parser *p, char *msg) {
     p->err = true;
-    printf("Error in syntax.\n");
+    printf("Error (%d:%d): %s\n", p->current.line+1, p->current.col+1, msg);
 }
 
 // Failure to match results in error.
-bool require(Parser *p, TokenType t) {
+bool require(Parser *p, TokenType t, char *msg) {
     if (match(p, t)) return true;
-    pError(p);
+    pError(p, msg);
     return false;
 }
 
 // Failure to match keyword results in error.
-bool requireKeyword(Parser *p, char *key) {
+bool requireKeyword(Parser *p, char *key, char *msg) {
     if (matchKeyword(p, key)) return true;
-    pError(p);
+    pError(p, msg);
     return false;
 }
 

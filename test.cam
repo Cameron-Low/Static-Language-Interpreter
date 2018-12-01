@@ -1,14 +1,19 @@
-let y be num;
-y = 1;
-let x be num;
-x = y;
+// Fibonacci up to the 20th item.
+let max be num;
+let count be num;
+let fNum be num;
+let sNum be num;
+let temp be num;
 
-if x <= 5 then
-    x = x + 1;
-    y = y;
-    while y < 2 do
-        y = y + 1;
-        x = x;
-    endwhile
-    show (x + 2 * 4); 
-endif
+max = 20;
+count = 0;
+fNum = 1;
+sNum = 1;
+
+while count != max do
+    show fNum;
+    temp = fNum + sNum;
+    fNum = sNum;
+    sNum = temp;
+    count = count + 1;
+endwhile
